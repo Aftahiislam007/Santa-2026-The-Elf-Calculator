@@ -41,6 +41,21 @@ class PlanTest(unittest.TestCase):
         with self.assertRaises(PlanError):
             compile_plan(puzzle, plan)
 
+    def test_recomputation_is_honoured_when_registers_run_out(self):
+        puzzle = Puzzle("p", (1,), (1275,), 10000)
+        values = list(range(1, 51))
+        plan = [("+", v, 1) for v in values[:-1]]
+        acc = 50
+        for v in reversed(values[1:-1]):
+            plan.append(("+", acc, v))
+            acc += v
+            if v > 2:
+                plan.append(("-", v, 1))
+        plan.append(("+", acc, 1))
+        with self.assertRaises(PlanError):
+            compile_plan(puzzle, [s for s in plan if s[0] == "+"])
+        self.assertEqual(simulate(puzzle, compile_plan(puzzle, plan)), len(plan))
+
     def test_reorder_rescues_wide_plans(self):
         targets = tuple(range(1000, 1060))
         puzzle = Puzzle("p", (1, 1000), targets, 2000)

@@ -13,6 +13,8 @@ from typing import Callable
 
 SOLVERS: dict[str, str] = {
     "baseline": "elfcalc.solvers.baseline:solve",
+    "exact": "elfcalc.solvers.exact:solve",
+    "greedy": "elfcalc.solvers.greedy:solve",
 }
 
 

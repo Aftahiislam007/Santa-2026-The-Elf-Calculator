@@ -133,11 +133,75 @@ def _reorder(puzzle: Puzzle, steps: list[tuple[Step, int]]) -> list[tuple[Step, 
     return order
 
 
+def _allocate_instances(puzzle: Puzzle, plan: Plan) -> list[list]:
+    """Assign registers when a value may be forgotten and recomputed later.
+
+    Every step creates a fresh instance of its result and operands read the
+    latest instance, so a value only occupies a register between a computation
+    and the last read before its next recomputation.
+    """
+    results = execute_plan(puzzle, plan)
+    current: dict[int, int] = {}
+    for i, v in enumerate(puzzle.starting_values):
+        current.setdefault(v, -1 - i)
+    operands = []
+    covered = set(puzzle.starting_values)
+    needed = set()
+    for k, ((_, a, b), r) in enumerate(zip(plan, results)):
+        operands.append((current[a], current[b]))
+        current[r] = k
+        if r in puzzle.missing_targets and r not in covered:
+            needed.add(k)
+        covered.add(r)
+    for k in reversed(range(len(plan))):
+        if k in needed:
+            needed.update(operands[k])
+
+    last_use: dict[int, int] = {}
+    for k in sorted(i for i in needed if i >= 0):
+        last_use[operands[k][0]] = last_use[operands[k][1]] = k
+    reg_of: dict[int, int] = {}
+    free = list(range(len(puzzle.starting_values), puzzle.registers))
+    for i in range(len(puzzle.starting_values)):
+        if -1 - i in last_use:
+            reg_of[-1 - i] = i
+        else:
+            free.append(i)
+    heapq.heapify(free)
+
+    program = []
+    for k, (op, _, _) in enumerate(plan):
+        if k not in needed:
+            continue
+        ia, ib = operands[k]
+        ra, rb = reg_of[ia], reg_of[ib]
+        for inst in {ia, ib}:
+            if last_use[inst] == k:
+                heapq.heappush(free, reg_of.pop(inst))
+        if not free:
+            raise PlanError(f"more than {puzzle.registers} live values at step {k}")
+        if k in last_use:
+            d = heapq.heappop(free)
+            reg_of[k] = d
+        else:
+            d = free[0]
+        program.append([op, ra, rb, d])
+    return program
+
+
 def compile_plan(puzzle: Puzzle, plan: Plan) -> list[list]:
-    """Prune `plan` and turn it into a register program for `puzzle`."""
+    """Prune `plan` and turn it into a register program for `puzzle`.
+
+    Recomputations of a value are dropped when the registers allow keeping the
+    first copy alive; otherwise the plan is taken literally, recomputations
+    included.
+    """
     pruned = prune_plan(puzzle, plan)
     steps = list(zip(pruned, execute_plan(puzzle, pruned)))
-    try:
-        return _allocate(puzzle, steps)
-    except PlanError:
-        return _allocate(puzzle, _reorder(puzzle, steps))
+    for attempt in (lambda: _allocate(puzzle, steps),
+                    lambda: _allocate(puzzle, _reorder(puzzle, steps))):
+        try:
+            return attempt()
+        except PlanError:
+            pass
+    return _allocate_instances(puzzle, plan)
