@@ -56,3 +56,18 @@ def run_engine(name: str, puzzle: Puzzle, args: list[str] | tuple[str, ...] = ()
     if result.returncode != 0:
         return None
     return parse_plan(result.stdout)
+
+
+def solve_engine(
+    name: str,
+    puzzle: Puzzle,
+    default_timeout: float | None = 120.0,
+    **options: object,
+) -> Plan | None:
+    """Forward ``--key value`` options and ``timeout`` to engine ``name``."""
+    raw_timeout = options.pop("timeout", default_timeout)
+    timeout = None if raw_timeout in (None, "", "none", "None") else float(raw_timeout)
+    args: list[str] = []
+    for key, value in options.items():
+        args += [f"--{key}", str(value)]
+    return run_engine(name, puzzle, args=args, timeout=timeout)

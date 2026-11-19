@@ -8,11 +8,9 @@ from __future__ import annotations
 
 from ..plan import Plan
 from ..puzzle import Puzzle
-from .engine import run_engine
+from .engine import solve_engine
 
 
-def solve(puzzle: Puzzle, **options: str) -> Plan | None:
-    args: list[str] = []
-    for key, value in options.items():
-        args += [f"--{key}", str(value)]
-    return run_engine("greedy", puzzle, args)
+def solve(puzzle: Puzzle, **options: object) -> Plan | None:
+    """Run the `greedy` C++ engine with forwarded CLI options."""
+    return solve_engine("greedy", puzzle, default_timeout=120.0, **options)

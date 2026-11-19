@@ -14,6 +14,8 @@
 //
 // I/O protocol: see elfcalc/solvers/engine.py.
 
+#include "common.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -135,8 +137,9 @@ struct Engine {
     }
 
     u64 eval(char op, u64 a, u64 b) const {
+        if (a == 0 || b == 0) return 0;
         switch (op) {
-            case '+': { u64 r = a + b; return r <= limit ? r : 0; }
+            case '+': return (a <= limit && b <= limit - a) ? (a + b) : 0;
             case '*': { u128 r = (u128)a * b; return r <= limit ? (u64)r : 0; }
             case '-': return a > b ? a - b : 0;
             case '/': return b && a % b == 0 ? a / b : 0;
@@ -261,7 +264,7 @@ struct Engine {
         };
         for (u64 c : pool) {
             if (v > c && hit(v - c, '+', true, c)) return true;
-            if (v + c <= limit && hit(v + c, '-', true, c)) return true;
+            if (v <= limit - c && hit(v + c, '-', true, c)) return true;
             if (c > v) {
                 if (hit(c - v, '-', false, c)) return true;
                 if (c % v == 0 && hit(c / v, '/', false, c)) return true;
@@ -294,7 +297,7 @@ struct Engine {
                 if (both(x, x - v, {'-', x, x - v})) return true;
                 if (x % v == 0 && both(x, x / v, {'/', x, x / v})) return true;
             }
-            if (v + x <= limit && both(x, v + x, {'-', v + x, x})) return true;
+            if (v <= limit - x && both(x, v + x, {'-', v + x, x})) return true;
             if (x > 1) {
                 if (v % x == 0 && both(x, v / x, {'*', x, v / x})) return true;
                 u128 p = (u128)v * x;
@@ -308,7 +311,7 @@ struct Engine {
         };
         for (u64 c : pool) {
             if (v > c && chain(v - c, {'+', v - c, c})) return true;
-            if (v + c <= limit && chain(v + c, {'-', v + c, c})) return true;
+            if (v <= limit - c && chain(v + c, {'-', v + c, c})) return true;
             if (c > v) {
                 if (chain(c - v, {'-', c, c - v})) return true;
                 if (c % v == 0 && chain(c / v, {'/', c, c / v})) return true;
@@ -654,7 +657,15 @@ int main(int argc, char** argv) {
                          engine.plan.size(), engine.evictions, best.size(), elapsed.count());
         if (elapsed.count() * (r + 2) / (r + 1) > opt.timeLimit) break;
     }
-    for (const Step& s : best)
-        std::printf("%c %llu %llu\n", s.op, (unsigned long long)s.a, (unsigned long long)s.b);
+    elf::Puzzle pz{id, limit, starts, targets};
+    std::vector<elf::Step> raw;
+    raw.reserve(best.size());
+    for (const Step& s : best) raw.push_back(elf::Step{s.op, s.a, s.b, 0});
+    auto verified = elf::verify_and_prune_plan(pz, raw, opt.regs);
+    if (!verified.has_value()) {
+        std::fprintf(stderr, "greedy verification failed for %s\n", id.c_str());
+        return 1;
+    }
+    elf::emit_plan(*verified);
     return 0;
 }

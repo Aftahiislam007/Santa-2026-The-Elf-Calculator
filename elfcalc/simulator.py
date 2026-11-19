@@ -37,7 +37,11 @@ def simulate(puzzle: Puzzle, program: Program) -> int:
         raise InvalidProgram("program is not a JSON array")
     if len(program) > MAX_INSTRUCTIONS:
         raise InvalidProgram(f"{len(program)} instructions exceed {MAX_INSTRUCTIONS}")
-    if len(encode_program(program).encode("utf-8")) > MAX_CELL_BYTES:
+    try:
+        cell = encode_program(program).encode("utf-8")
+    except (TypeError, ValueError) as e:
+        raise InvalidProgram(f"program is not JSON serializable: {e}") from e
+    if len(cell) > MAX_CELL_BYTES:
         raise InvalidProgram(f"program cell exceeds {MAX_CELL_BYTES} bytes")
 
     limit = puzzle.value_limit
@@ -51,7 +55,7 @@ def simulate(puzzle: Puzzle, program: Program) -> int:
         if not isinstance(ins, (list, tuple)) or len(ins) != 4:
             raise InvalidProgram(f"{where}: not a four-element array")
         op, i, j, d = ins
-        if op not in OPS:
+        if type(op) is not str or op not in OPS:
             raise InvalidProgram(f"{where}: bad operator")
         if not (_is_index(i, puzzle.registers) and _is_index(j, puzzle.registers)
                 and _is_index(d, puzzle.registers)):
@@ -68,7 +72,7 @@ def simulate(puzzle: Puzzle, program: Program) -> int:
                 raise InvalidProgram(f"{where}: {a} - {b} is not positive")
             r = a - b
         else:
-            if a % b:
+            if b == 0 or a % b:
                 raise InvalidProgram(f"{where}: {a} / {b} is not exact")
             r = a // b
         if r < 1:

@@ -79,7 +79,12 @@ def cmd_solve(args: argparse.Namespace) -> int:
 
 def cmd_validate(args: argparse.Namespace) -> int:
     _, puzzles = _dataset(args.practice)
-    programs = read_programs(args.csv)
+    try:
+        programs = read_programs(args.csv)
+    except (ValueError, OSError) as e:  # bad header, duplicate id, bad JSON, oversize cell
+        print(f"INVALID FILE: {e}")
+        print("REJECTED")
+        return 1
     costs, errors = validate_programs(puzzles, programs, require_all=not args.partial)
     for pid, message in sorted(errors.items())[:20]:
         print(f"INVALID {pid}: {message}")

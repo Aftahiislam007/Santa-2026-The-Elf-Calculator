@@ -15,6 +15,11 @@ SOLVERS: dict[str, str] = {
     "baseline": "elfcalc.solvers.baseline:solve",
     "exact": "elfcalc.solvers.exact:solve",
     "greedy": "elfcalc.solvers.greedy:solve",
+    "greedy_v2": "elfcalc.solvers.greedy_v2:solve",
+    "mitm_basis": "elfcalc.solvers.mitm_basis:solve",
+    "mixed_hybrid": "elfcalc.solvers.mixed_hybrid:solve",
+    "mult_factor": "elfcalc.solvers.mult_factor:solve",
+    "shared_dag": "elfcalc.solvers.shared_dag:solve",
 }
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import heapq
 
 from .puzzle import Puzzle
+from .simulator import InvalidProgram, simulate
 
 Step = tuple[str, int, int]
 Plan = list[Step]
@@ -20,6 +21,8 @@ class PlanError(ValueError):
 
 
 def apply_op(op: str, a: int, b: int, limit: int) -> int:
+    if type(a) is not int or type(b) is not int or a < 1 or b < 1:
+        raise PlanError(f"operands ({a!r}, {b!r}) must be positive integers")
     if op == "+":
         r = a + b
     elif op == "*":
@@ -34,6 +37,8 @@ def apply_op(op: str, a: int, b: int, limit: int) -> int:
         r = a // b
     else:
         raise PlanError(f"bad operator {op!r}")
+    if r < 1:
+        raise PlanError(f"{a} {op} {b} = {r} is not positive")
     if r > limit:
         raise PlanError(f"{a} {op} {b} = {r} exceeds value_limit {limit}")
     return r
@@ -198,10 +203,16 @@ def compile_plan(puzzle: Puzzle, plan: Plan) -> list[list]:
     """
     pruned = prune_plan(puzzle, plan)
     steps = list(zip(pruned, execute_plan(puzzle, pruned)))
-    for attempt in (lambda: _allocate(puzzle, steps),
-                    lambda: _allocate(puzzle, _reorder(puzzle, steps))):
+    for allocate in (lambda: _allocate(puzzle, steps),
+                     lambda: _allocate(puzzle, _reorder(puzzle, steps)),
+                     lambda: _allocate_instances(puzzle, plan)):
         try:
-            return attempt()
+            program = allocate()
         except PlanError:
-            pass
-    return _allocate_instances(puzzle, plan)
+            continue
+        try:  # never hand out a program the authoritative checker would reject
+            simulate(puzzle, program)
+        except InvalidProgram as e:
+            raise PlanError(f"compiled program is invalid: {e}") from e
+        return program
+    raise PlanError(f"more than {puzzle.registers} live values")

@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 from .puzzle import Puzzle
-from .simulator import InvalidProgram, encode_program, simulate
+from .simulator import MAX_CELL_BYTES, InvalidProgram, encode_program, simulate
 
 Programs = dict[str, list]
 
@@ -21,8 +21,13 @@ def read_programs(path: str | Path) -> Programs:
             raise ValueError(f"{path}: expected columns id,program, got {reader.fieldnames}")
         programs: Programs = {}
         for row in reader:
+            if None in row or row["id"] is None or row["program"] is None:
+                raise ValueError(f"{path}: malformed row {row!r:.80}")
             if row["id"] in programs:
                 raise ValueError(f"{path}: duplicate id {row['id']}")
+            # The cell limit applies to the text as submitted, not to a re-encoding.
+            if len(row["program"].encode("utf-8")) > MAX_CELL_BYTES:
+                raise ValueError(f"{path}: {row['id']}: program cell exceeds {MAX_CELL_BYTES} bytes")
             programs[row["id"]] = json.loads(row["program"])
         return programs
 
@@ -67,7 +72,7 @@ def merge_programs(puzzles: list[Puzzle], sources: list[Programs]) -> Programs:
     for p in puzzles:
         for src in sources:
             prog = src.get(p.id)
-            if prog is None or (p.id in best and len(prog) >= len(best[p.id])):
+            if not isinstance(prog, list) or (p.id in best and len(prog) >= len(best[p.id])):
                 continue
             try:
                 simulate(p, prog)

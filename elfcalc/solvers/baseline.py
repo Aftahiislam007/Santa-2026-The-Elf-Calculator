@@ -11,6 +11,8 @@ from ..puzzle import Puzzle
 
 
 def solve(puzzle: Puzzle, **_: object) -> Plan:
+    if not puzzle.missing_targets:
+        return []
     have = set(puzzle.starting_values)
     plan: Plan = []
 
